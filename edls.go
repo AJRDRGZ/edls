@@ -6,12 +6,10 @@ import (
 	"github.com/fatih/color"
 )
 
-// os
-const (
-	windows = "windows"
-)
+// Windows os system
+const Windows = "windows"
 
-// file type
+// file types
 const (
 	fileRegular int = iota
 	fileDirectory
@@ -57,7 +55,7 @@ var mapStyleByFileType = map[int]styleFileType{
 	fileDirectory:  {icon: "📂", color: color.FgBlue, symbol: "/"},
 	fileExecutable: {icon: "🚀", color: color.FgGreen, symbol: "*"},
 	fileCompress:   {icon: "📦", color: color.FgRed},
-	fileImage:      {icon: "🖼️", color: color.FgMagenta},
+	fileImage:      {icon: "📸", color: color.FgMagenta},
 	fileLink:       {icon: "🔗", color: color.FgCyan},
 }
 

@@ -3,35 +3,32 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
-	"os/user"
 	"path"
 	"regexp"
 	"runtime"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
-	"edls/fileinfo"
-
+	"github.com/AJRDRGZ/fileinfo"
 	"github.com/fatih/color"
 	"golang.org/x/exp/constraints"
 )
 
 func main() {
-	// Filters
+	// filter flags
 	flagPattern := flag.String("p", "", "filter by pattern")
 	flagAll := flag.Bool("a", false, "all files including hide files")
 	flagNumberRecords := flag.Int("n", 0, "number of records")
 
-	// order
-	hasOrderByTime := flag.Bool("t", false, "sort by time, newest first")
-	hasOrderBySize := flag.Bool("s", false, "sort by file size, largest first")
+	// order flags
+	hasOrderByTime := flag.Bool("t", false, "sort by time, oldest first")
+	hasOrderBySize := flag.Bool("s", false, "sort by file size, smallest first")
 	hasOrderReverse := flag.Bool("r", false, "reverse order while sorting")
 
 	// TODO explicar flag --help
-
 	flag.Parse()
 
 	path := flag.Arg(0)
@@ -46,13 +43,14 @@ func main() {
 
 	fs := []file{}
 	for _, dir := range dirs {
-		info, err := dir.Info()
-		if err != nil {
-			panic(err)
+		isHidden := isHidden(dir.Name(), path)
+
+		if isHidden && !*flagAll {
+			continue
 		}
 
 		if *flagPattern != "" {
-			isMatched, err := regexp.MatchString(*flagPattern, dir.Name())
+			isMatched, err := regexp.MatchString("(?i)"+*flagPattern, dir.Name())
 			if err != nil {
 				panic(err)
 			}
@@ -62,30 +60,9 @@ func main() {
 			}
 		}
 
-		f := file{
-			name:             dir.Name(),
-			isDir:            dir.IsDir(),
-			size:             info.Size(),
-			mode:             info.Mode().String(),
-			modificationTime: info.ModTime(),
-		}
-
-		setFileType(&f)
-		setIsHidden(&f, path)
-
-		if f.isHidden && !*flagAll {
-			continue
-		}
-
-		stat, ok := info.Sys().(*syscall.Stat_t)
-		if ok {
-			if u, err := user.LookupId(fmt.Sprintf("%d", stat.Uid)); err == nil {
-				f.userName = u.Username
-			}
-
-			if g, err := user.LookupGroupId(fmt.Sprintf("%d", stat.Gid)); err == nil {
-				f.groupName = g.Name
-			}
+		f, err := getFile(dir, isHidden)
+		if err != nil {
+			panic(err)
 		}
 
 		fs = append(fs, f)
@@ -108,6 +85,29 @@ func main() {
 	}
 
 	printList(fs, *flagNumberRecords, path)
+}
+
+func getFile(dir fs.DirEntry, isHidden bool) (file, error) {
+	info, err := dir.Info()
+	if err != nil {
+		return file{}, err
+	}
+
+	userName, groupName := fileinfo.GetUserAndGroup(info.Sys())
+
+	f := file{
+		name:             dir.Name(),
+		isDir:            dir.IsDir(),
+		isHidden:         isHidden,
+		size:             info.Size(),
+		mode:             info.Mode().String(),
+		modificationTime: info.ModTime(),
+		userName:         userName,
+		groupName:        groupName,
+	}
+	setFileType(&f)
+
+	return f, nil
 }
 
 func mySort[T constraints.Ordered](i, j T, isReverse bool) bool {
@@ -160,9 +160,7 @@ func printList(files []file, nRecords int, route string) {
 	for _, file := range files[:nRecords] {
 		style := mapStyleByFileType[file.fileType]
 
-		// TODO logica para formato MB, KB etc
-
-		fmt.Printf("%s %-10s %-10s %10d %s %s %s%s %s\n",
+		fmt.Printf("%11s %-8s %-8s %10d %s %s %s%s %s\n",
 			file.mode, file.userName, file.groupName, file.size,
 			file.modificationTime.Format(time.DateTime), style.icon,
 			setColor(file.name, style.color), style.symbol, markHidden(file.isHidden))
@@ -186,14 +184,14 @@ func setColor(nameFile string, styleColor color.Attribute) string {
 	return nameFile
 }
 
-func setIsHidden(f *file, basePath string) {
-	filePath := f.name
+func isHidden(fileName, basePath string) bool {
+	filePath := fileName
 
-	if runtime.GOOS == windows {
+	if runtime.GOOS == Windows {
 		filePath = path.Join(basePath, filePath)
 	}
 
-	f.isHidden = fileinfo.IsHidden(filePath)
+	return fileinfo.IsHidden(filePath)
 }
 
 func setFileType(f *file) {
@@ -218,7 +216,7 @@ func isLink(f file) bool {
 }
 
 func isExec(f file) bool {
-	if runtime.GOOS == windows {
+	if runtime.GOOS == Windows {
 		return strings.HasSuffix(f.name, exe)
 	}
 
