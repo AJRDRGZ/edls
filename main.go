@@ -28,7 +28,6 @@ func main() {
 	hasOrderBySize := flag.Bool("s", false, "sort by file size, smallest first")
 	hasOrderReverse := flag.Bool("r", false, "reverse order while sorting")
 
-	// TODO explicar flag --help
 	flag.Parse()
 
 	path := flag.Arg(0)
@@ -120,41 +119,33 @@ func mySort[T constraints.Ordered](i, j T, isReverse bool) bool {
 
 func orderByName(files []file, isReverse bool) {
 	sort.SliceStable(files, func(i, j int) bool {
-		return mySort(strings.ToLower(files[i].name), strings.ToLower(files[j].name), isReverse)
+		return mySort(
+			strings.ToLower(files[i].name),
+			strings.ToLower(files[j].name),
+			isReverse,
+		)
 	})
 }
 
 func orderBySize(files []file, isReverse bool) {
 	sort.SliceStable(files, func(i, j int) bool {
-		return mySort(files[i].size, files[j].size, isReverse)
+		return mySort(
+			files[i].size,
+			files[j].size,
+			isReverse,
+		)
 	})
 }
 
 func orderByTime(files []file, isReverse bool) {
 	sort.SliceStable(files, func(i, j int) bool {
-		return mySort(files[i].modificationTime.Unix(), files[j].modificationTime.Unix(), isReverse)
+		return mySort(
+			files[i].modificationTime.Unix(),
+			files[j].modificationTime.Unix(),
+			isReverse,
+		)
 	})
 }
-
-// func orderBySize(files []file, isReverse bool) {
-// 	sort.SliceStable(files, func(i, j int) bool {
-// 		if isReverse {
-// 			return files[i].size > files[j].size
-// 		}
-
-// 		return files[i].size < files[j].size
-// 	})
-// }
-
-// func orderByTime(files []file, isReverse bool) {
-// 	sort.SliceStable(files, func(i, j int) bool {
-// 		if isReverse {
-// 			return files[i].modificationTime.After(files[j].modificationTime)
-// 		}
-
-// 		return files[i].modificationTime.Before(files[j].modificationTime)
-// 	})
-// }
 
 func printList(files []file, nRecords int) {
 	for _, file := range files[:nRecords] {
@@ -164,6 +155,23 @@ func printList(files []file, nRecords int) {
 			file.mode, file.userName, file.groupName, file.size,
 			file.modificationTime.Format(time.DateTime), style.icon,
 			setColor(file.name, style.color), style.symbol, markHidden(file.isHidden))
+	}
+}
+
+func setFileType(f *file) {
+	switch {
+	case isLink(*f):
+		f.fileType = fileLink
+	case f.isDir:
+		f.fileType = fileDirectory
+	case isExec(*f):
+		f.fileType = fileExecutable
+	case isCompress(*f):
+		f.fileType = fileCompress
+	case isImage(*f):
+		f.fileType = fileImage
+	default:
+		f.fileType = fileRegular
 	}
 }
 
@@ -182,33 +190,6 @@ func setColor(nameFile string, styleColor color.Attribute) string {
 	}
 
 	return nameFile
-}
-
-func isHidden(fileName, basePath string) bool {
-	filePath := fileName
-
-	if runtime.GOOS == Windows {
-		filePath = path.Join(basePath, filePath)
-	}
-
-	return fileinfo.IsHidden(filePath)
-}
-
-func setFileType(f *file) {
-	switch {
-	case isLink(*f):
-		f.fileType = fileLink
-	case f.isDir:
-		f.fileType = fileDirectory
-	case isExec(*f):
-		f.fileType = fileExecutable
-	case isCompress(*f):
-		f.fileType = fileCompress
-	case isImage(*f):
-		f.fileType = fileImage
-	default:
-		f.fileType = fileRegular
-	}
 }
 
 func isLink(f file) bool {
@@ -232,6 +213,16 @@ func isCompress(f file) bool {
 func isImage(f file) bool {
 	return strings.HasSuffix(f.name, png) || strings.HasSuffix(f.name, jpg) ||
 		strings.HasSuffix(f.name, gif)
+}
+
+func isHidden(fileName, basePath string) bool {
+	filePath := fileName
+
+	if runtime.GOOS == Windows {
+		filePath = path.Join(basePath, filePath)
+	}
+
+	return fileinfo.IsHidden(filePath)
 }
 
 func markHidden(isHidden bool) string {
