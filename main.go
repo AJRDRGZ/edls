@@ -84,7 +84,7 @@ func main() {
 		*flagNumberRecords = len(fs)
 	}
 
-	printList(fs, *flagNumberRecords, path)
+	printList(fs, *flagNumberRecords)
 }
 
 func getFile(dir fs.DirEntry, isHidden bool) (file, error) {
@@ -156,7 +156,7 @@ func orderByTime(files []file, isReverse bool) {
 // 	})
 // }
 
-func printList(files []file, nRecords int, route string) {
+func printList(files []file, nRecords int) {
 	for _, file := range files[:nRecords] {
 		style := mapStyleByFileType[file.fileType]
 
